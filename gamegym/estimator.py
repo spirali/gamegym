@@ -43,5 +43,5 @@ class SimpleEstimatorAdapter(EstimatorAdapter):
     def distribution_from_policy_logits(self, situation: Situation, logits):
         game = situation.game
         actions = tuple(self.actions)
-        probs = [np.exp(game.actions_index[action]) for action in actions]
+        probs = [game.actions_index[action] for action in actions]
         return Distribution(actions, probs, norm=True)

@@ -6,7 +6,7 @@ import tensorflow as tf
 from gamegym.algorithms.mcts import search, buffer, alphazero
 from gamegym.utils import Distribution
 from gamegym.games import Gomoku, gomoku
-
+from gamegym.algorithms.stats import play_strategies
 
 def build_model(adapter):
     assert len(adapter.data_shapes) == 1
@@ -16,7 +16,8 @@ def build_model(adapter):
     inputs = keras.layers.Input(adapter.data_shapes[0])
     x = keras.layers.Flatten()(inputs)
     #x = keras.layers.Dense(32, activation=keras.layers.LeakyReLU)(x)
-    x = keras.layers.Dense(32, activation="relu")(x)
+    x = keras.layers.Dense(12, activation="tanh")(x)
+    x = keras.layers.Dense(12, activation="tanh")(x)
 
     out_values = keras.layers.Dense(2, activation="tanh")(x)
 
@@ -39,25 +40,36 @@ def build_model(adapter):
 
 
 def test_alphazero():
-    g = Gomoku(3, 3, 3)
+    g = Gomoku(4, 4, 3)
     adapter = Gomoku.TensorAdapter(g, symmetrize=True)
     model = build_model(adapter)
 
     az = alphazero.AlphaZero(
         g, adapter, model,
-        max_moves=20, num_simulations=10, batch_size=32, replay_buffer_size=128)
+        max_moves=20, num_simulations=64, batch_size=64, replay_buffer_size=1280)
     az.prefill_replay_buffer()
 
     assert 32 <= az.replay_buffer.records_count <= 128
 
-    az.train_network()
-    estimator = az.last_estimator()
-    print(estimator(g.start()))
-    return
+    az.train_network(4, 1)
 
-    for i in range(10):
+    estimator = az.last_estimator()
+    v, dd = estimator(g.start())
+    dd.pprint()
+    print(v)
+    #return
+
+    #print(g.show_board(sit, colors=True))
+
+    for i in range(300):
         az.play_game()
-        az.train_network()
+        az.train_network(8, 1)
+
+    s = az.make_strategy()
+    sit = play_strategies(g, [s, s], after_move_callback=lambda sit: print(g.show_board(sit, colors=True)))
+
 
     estimator = az.last_estimator()
-    print(estimator(g.start()))
+    v, dd = estimator(g.start())
+    dd.pprint()
+    print(v)

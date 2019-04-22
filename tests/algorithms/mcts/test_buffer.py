@@ -10,8 +10,8 @@ def test_buffer():
 
     v = []
     for i in range(10):
-        v.append(R(i, i, i))
-        rb.add_record(R(i, i, i))
+        v.append(R([i, i * 10], i, i))
+        rb.add_record(R([i, i * 10], i, i))
         assert sorted(rb.records) == sorted(v[-3:])
 
     b = rb.get_batch(2)
@@ -19,5 +19,6 @@ def test_buffer():
     assert len(b.target_policy_logits) == 2
 
     b = rb.get_batch(3)
-    assert sorted(b.inputs) == [7, 8, 9]
+    assert sorted(b.inputs[0]) == [7, 8, 9]
+    assert sorted(b.inputs[1]) == [70, 80, 90]
     assert sorted(b.target_policy_logits) == [7, 8, 9]

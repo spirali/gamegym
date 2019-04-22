@@ -57,6 +57,9 @@ class MctSearch:
     PB_C_BASE = 19652
     PB_C_INIT = 1.25
 
+    ROOT_DIRICHLET_ALPHA = 0.3  # In AlphaZero: 0.3 for chess, 0.03 for Go and 0.15 for shogi.
+    ROOT_EXPLORATION_FRACTION = 0.25
+
     def __init__(self, situation: Situation, estimator):
         self.root = None
         self.iterations = 0
@@ -66,13 +69,24 @@ class MctSearch:
 
         assert not situation.is_terminal()
         #self.root = MctsNode(situation, 0)
-        self.root, _ = self._create_node(situation)
+        self.root, _ = self._create_node(situation, True)
 
-    def _create_node(self, situation) -> Tuple[MctsNode, float]:
+    def _create_node(self, situation, add_noise) -> Tuple[MctsNode, float]:
         if situation.is_terminal():
             return MctsNode(situation, None), situation.payoff
         value, policy = self.estimator(situation)
+        if add_noise:
+            policy = self._add_exploration_noise(policy)
         return MctsNode(situation, policy), value
+
+    def _add_exploration_noise(self, policy):
+        actions = policy.vals
+        noise = np.random.gamma(self.ROOT_DIRICHLET_ALPHA, 1, len(actions))
+        frac = self.ROOT_EXPLORATION_FRACTION
+        probs = policy.probs
+        if not isinstance(probs, np.ndarray):
+            probs = np.array(probs)
+        return Distribution(actions, probs * (1 - frac) + noise * frac)
 
     def create_dot(self):
         def helper(node):
@@ -139,7 +153,7 @@ class MctSearch:
 
         if action:  # Nonterminal node
             situation = node.situation.play(action)
-            child, value = self._create_node(situation)
+            child, value = self._create_node(situation, False)
             node.children[action] = child
             search_path.append(child)
         else:  # Terminal node

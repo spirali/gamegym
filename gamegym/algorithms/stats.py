@@ -13,7 +13,8 @@ def play_strategies(game,
                     seed=None,
                     start: Situation = None,
                     stop_when: Callable = None,
-                    max_moves: int = None):
+                    max_moves: int = None,
+                    after_move_callback=None):
     """
     Generate a play based on given strategies (one per player), return the last state.
 
@@ -40,6 +41,8 @@ def play_strategies(game,
         action = dist.sample(rng)
         sit = game.play(sit, action)
         moves += 1
+        if after_move_callback:
+            after_move_callback(sit)
     return sit
 
 

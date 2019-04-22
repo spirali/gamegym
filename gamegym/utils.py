@@ -125,6 +125,11 @@ class Distribution:
         return Distribution((value,), (1.0, ))
 
 
+    def pprint(self):
+        for v, p in self.items():
+            print("{} -> {}".format(v, p))
+
+
 def debug_assert(cond):
     if hasattr(pytest, "_called_from_pytest"):
         assert cond()
