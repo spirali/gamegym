@@ -6,6 +6,27 @@ from ..situation import Situation
 from ..utils import get_rng, Distribution
 
 
+class PlayInfo:
+
+    def __init__(self, situation, distributions):
+        self.situation = situation
+        self.distributions = distributions
+
+    def replay(self):
+        game = self.game
+        s = game.start()
+        print(self.situation.history, self.distributions)
+        for a, d in zip(self.situation.history, self.distributions):
+            print(a)
+            yield s, a, d
+            s = game.play(s, a)
+        yield s, None, None
+
+    @property
+    def game(self):
+        return self.situation.game
+
+
 def play_strategies(game,
                     strategies,
                     *,
@@ -14,7 +35,8 @@ def play_strategies(game,
                     start: Situation = None,
                     stop_when: Callable = None,
                     max_moves: int = None,
-                    after_move_callback=None):
+                    after_move_callback=None,
+                    return_play_info=None):
     """
     Generate a play based on given strategies (one per player), return the last state.
 
@@ -28,6 +50,8 @@ def play_strategies(game,
     if start is None:
         start = game.start()
     sit = start
+    if return_play_info:
+        distributions = []
     while not sit.is_terminal():
         if stop_when is not None and stop_when(sit):
             break
@@ -38,12 +62,18 @@ def play_strategies(game,
         else:
             p = sit.player
             dist = strategies[p].get_policy(sit)
+        if return_play_info:
+            distributions.append(dist)
         action = dist.sample(rng)
         sit = game.play(sit, action)
         moves += 1
         if after_move_callback:
             after_move_callback(sit)
-    return sit
+
+    if return_play_info:
+        return PlayInfo(sit, distributions)
+    else:
+        return sit
 
 
 def sample_payoff(game, strategies, iterations=100, *, start=None, rng=None, seed=None):

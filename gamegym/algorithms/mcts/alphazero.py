@@ -31,7 +31,7 @@ class AlphaZero:
                  adapter,
                  model,
                  batch_size=128,
-                 replay_buffer_size=2024,
+                 replay_buffer_size=4096,
                  max_moves=1000,
                  num_simulations=800,
                  num_sampling_moves=30):
@@ -63,6 +63,11 @@ class AlphaZero:
 
             # Extra value and logits from result
             value = prediction[0][0]
+
+            # Since we simetrize the position, we have to switch values for second player
+            if situation.player == 1:
+                value = value[::-1]
+
             logits = [p for p in prediction[1:][0]]
             return value, self.adapter.decode_actions(observation, logits)
         if self.model_generation == 0:
@@ -102,8 +107,15 @@ class AlphaZero:
             num_simulations = self.num_simulations
         return AlphaZeroStrategy(self.game, self.adapter, self.last_estimator(), num_simulations)
 
+    def do_step(self, epochs=1, sample_gen_ratio=4):
+        if not self.replay_buffer.added or (self.replay_buffer.sampled / self.replay_buffer.added) > sample_gen_ratio:
+            self.play_game()
+        else:
+            self.train_network(epochs)
+
     def _record_search(self, search):
-        children = search.root.children
+        root = search.root
+        children = root.children
         values = []
         p = []
         for action in children:
@@ -117,7 +129,11 @@ class AlphaZero:
         #    print("TARGET", policy_target)
         data = self.adapter.get_observation(search.root.situation).data
         assert len(data) == len(self.adapter.data_shapes)
-        record = ReplayRecord(data,
-                              search.root.value,
-                              policy_target)
+
+        value = root.value
+        # Since we simetrize the position, we have to switch values for second player
+        if root.situation.player == 1:
+            value = value[::-1]
+
+        record = ReplayRecord(data, value, policy_target)
         self.replay_buffer.add_record(record)

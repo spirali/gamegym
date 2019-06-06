@@ -66,6 +66,10 @@ class ReplayBuffer:
         self.sampled += batch_size
         return ReplayRecordBatch.from_records(s)
 
+    def reset_stats(self, added=0, sampled=0):
+        self.added = added
+        self.sampled = sampled
+
     def stats(self):
         return "samples: {} in, {} sampled (on average {:.2f} times each)".format(
             self.added, self.sampled, self.sampled / self.added)

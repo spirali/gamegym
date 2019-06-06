@@ -162,8 +162,8 @@ class Gomoku(PerfectInformationGame):
             board = situation.state[0]
             if self.symmetrize:
                 p = situation.player
-                return (np.stack([board == p, board == 1 - p]),)
-            return (np.stack([board == 0, board == 1]),)
+                return (np.stack([board != p, board != 1 - p]),)
+            return (np.stack([board != 0, board != 1]),)
 
         def _generate_data_shapes(self):
             return [(2, self.game.w, self.game.h)]
