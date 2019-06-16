@@ -26,7 +26,8 @@ def test_tournament():
 
     frames = []
     for step in range(400):
-        tr.play_random_matches(16)
+        #tr.play_random_matches(16)
+        tr.play_all_pairs()
         table = tr.get_table()
         frame = pd.DataFrame(table, columns=["player", "rating", "wins", "losses", "draws"])
         frame["step"] = step
@@ -39,8 +40,8 @@ def test_tournament():
 
     frame["f"] = frame["wins"] / frame["losses"]
 
-    sns.lineplot(x="step", y="f", hue="player", data=frame)
-    #sns.lineplot(x="step", y="draws", hue="player", data=frame)
+    #sns.lineplot(x="step", y="f", hue="player", data=frame)
+    sns.lineplot(x="step", y="rating", hue="player", data=frame)
     #sns.lineplot(x="step", y="losses", hue="player", data=frame)
     plt.show()
 

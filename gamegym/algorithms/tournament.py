@@ -3,6 +3,8 @@ from .stats import play_strategies
 from ..utils import get_rng, Distribution
 from enum import Enum
 import math
+import itertools
+
 
 class Player:
 
@@ -10,6 +12,7 @@ class Player:
         self.name = name
         self.strategy = strategy
         self.rating = rating
+        self.rating_change = 0
 
         self.wins = 0
         self.losses = 0
@@ -49,10 +52,13 @@ class Tournament:
         rs = r1 + r2
         e1 = r1 / rs
         e2 = r2 / rs
-        player1.rating += elo_k * (result - e1)
-        player1.rating = max(player1.rating, 100)
-        player2.rating += elo_k * (1 - result - e2)
-        player2.rating = max(player2.rating, 100)
+        player1.rating_change += elo_k * (result - e1)
+        player2.rating_change += elo_k * (1 - result - e2)
+
+    def update_ratings(self):
+        for player in self.players.values():
+            player.rating = max(100, player.rating + player.rating_change)
+            player.rating_change = 0
 
     def play_random_matches(self, count, elo_k=32):
         players = list(self.players.values())
@@ -61,6 +67,13 @@ class Tournament:
         for _ in range(count):
             player1, player2 = self.rng.choice(players, size=2)
             self._play_match(player1, player2, elo_k)
+        self.update_ratings()
+
+    def play_all_pairs(self, elo_k=32):
+        players = list(self.players.values())
+        for player1, player2 in itertools.combinations(players, 2):
+            self._play_match(player1, player2, elo_k)
+        self.update_ratings()
 
     def _play_match(self, player1, player2, elo_k):
         #if self.player_order == PlayerOrder.Fixed:
