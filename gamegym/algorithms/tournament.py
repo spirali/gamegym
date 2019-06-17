@@ -46,14 +46,14 @@ class Tournament:
         return [(player.name, player.rating, player.wins, player.losses, player.draws)
                 for player in self.players.values()]
 
-    def _compute_elo(self, player1, player2, elo_k, result):
+    def _compute_elo(self, player1, player2, elo_k, result_p1, result_p2):
         r1 = 10 ** (player1.rating / 400)
         r2 = 10 ** (player2.rating / 400)
         rs = r1 + r2
         e1 = r1 / rs
         e2 = r2 / rs
-        player1.rating_change += elo_k * (result - e1)
-        player2.rating_change += elo_k * (1 - result - e2)
+        player1.rating_change += elo_k * (result_p1 - e1)
+        player2.rating_change += elo_k * (result_p2 - e2)
 
     def update_ratings(self):
         for player in self.players.values():
@@ -71,7 +71,7 @@ class Tournament:
 
     def play_all_pairs(self, elo_k=32):
         players = list(self.players.values())
-        for player1, player2 in itertools.combinations(players, 2):
+        for player1, player2 in itertools.permutations(players, 2):
             self._play_match(player1, player2, elo_k)
         self.update_ratings()
 
@@ -85,13 +85,16 @@ class Tournament:
         if abs(value[0] - value[1]) < 0.00001:
             player1.draws += 1
             player2.draws += 1
-            result = 0
+            result_p1 = 0.5
+            result_p2 = 0.5
         elif value[0] > value[1]:
             player1.wins += 1
             player2.losses += 1
-            result = 1
+            result_p1 = 1
+            result_p2 = 0
         else:
             player2.wins += 1
             player1.losses += 1
-            result = -1
-        self._compute_elo(player1, player2, elo_k, result)
+            result_p1 = 0
+            result_p2 = 1
+        self._compute_elo(player1, player2, elo_k, result_p1, result_p2)

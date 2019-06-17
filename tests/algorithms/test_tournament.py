@@ -13,6 +13,7 @@ simple_game = MatrixZeroSumGame([[0, -1, -1], [1, 0, -1], [1, 1, 0]])
 def test_tournament():
     tr = Tournament(simple_game)
 
+    print(simple_game.m)
 
     #tr.add_player("always-0", ConstStrategy(Distribution.single_value(0)))
 
@@ -25,9 +26,9 @@ def test_tournament():
     tr.add_player("0.00/0.6/0.4", ConstStrategy(Distribution(vals=[0, 1, 2], probs=(0.0, 0.6, 0.4))))
 
     frames = []
-    for step in range(400):
-        #tr.play_random_matches(16)
-        tr.play_all_pairs()
+    for step in range(1, 30):
+        #tr.play_random_matches(16, elo_k=1)
+        tr.play_all_pairs(elo_k=1)
         table = tr.get_table()
         frame = pd.DataFrame(table, columns=["player", "rating", "wins", "losses", "draws"])
         frame["step"] = step
