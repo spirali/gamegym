@@ -3,13 +3,18 @@ import pytest
 import keras
 import tensorflow as tf
 
-from gamegym.algorithms.mcts import search, buffer, alphazero
+from gamegym.algorithms.mcts import search, buffer, alphazero, model
 from gamegym.utils import Distribution
 from gamegym.games import Gomoku, gomoku
 from gamegym.algorithms.stats import play_strategies
 from gamegym.ui.tree import export_play_tree, export_az_play_tree
 
-def build_model(adapter):
+
+class MyModel(model.KerasModel):
+    pass
+
+
+def build_conv_model(adapter):
     assert len(adapter.data_shapes) == 1
     action_shapes = adapter.action_data_shapes
     assert len(action_shapes) == 1
@@ -31,15 +36,16 @@ def build_model(adapter):
 
     def crossentropy_logits(target, output):
         return tf.nn.softmax_cross_entropy_with_logits_v2(labels=target,
-                                                          logits=output)
+                                                        logits=output)
 
     model.compile(
         loss=['mean_squared_error', crossentropy_logits],
         optimizer='adam')
 
-    return model
+    super().__init__(self.SYMMETRIC_MODEL, adapter, False, model)
 
-def build_conv_model(adapter):
+
+def build_dense_model(adapter):
     assert len(adapter.data_shapes) == 1
     action_shapes = adapter.action_data_shapes
     assert len(action_shapes) == 1
@@ -83,16 +89,17 @@ def build_conv_model(adapter):
 def test_alphazero(tmpdir):
     g = Gomoku(4, 4, 3)
     adapter = Gomoku.TensorAdapter(g, symmetrize=True)
-    model = build_conv_model(adapter)
+    model = MyModel(MyModel.SYMMETRIC_MODEL, adapter, False, build_conv_model(adapter))
 
     az = alphazero.AlphaZero(
-        g, adapter, model,
-        max_moves=20, num_simulations=120, batch_size=128, replay_buffer_size=2080)
+        g, model,
+        max_moves=20, num_simulations=64, batch_size=64, replay_buffer_size=2800)
+
     az.prefill_replay_buffer()
 
     #assert 32 <= az.replay_buffer.records_count <= 128
 
-    az.train_network(4, 1)
+    az.train_model(4, 1)
 
     estimator = az.last_estimator()
     v, dd = estimator(g.start())
@@ -102,9 +109,9 @@ def test_alphazero(tmpdir):
 
     #print(g.show_board(sit, colors=True))
 
-    for i in range(400):
+    for _ in range(300):
         az.do_step()
-    az.train_network(8)
+    az.train_model(4)
 
     print("STATS:", az.replay_buffer.added, az.replay_buffer.sampled)
 
