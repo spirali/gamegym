@@ -1,17 +1,29 @@
-import numpy as np
-import pytest
-import keras
-import tensorflow as tf
-
 from gamegym.algorithms.mcts import search, buffer, alphazero, model
 from gamegym.utils import Distribution
 from gamegym.games import Gomoku, gomoku
 from gamegym.algorithms.stats import play_strategies
 from gamegym.ui.tree import export_play_tree, export_az_play_tree
+from gamegym.algorithms import tournament
+from gamegym.strategy import UniformStrategy
+
+import argparse
+import numpy as np
+import pytest
+import keras
+import tensorflow as tf
+import os
+import tqdm
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class MyModel(model.KerasModel):
     pass
+
+
+def crossentropy_logits(target, output):
+    return tf.nn.softmax_cross_entropy_with_logits_v2(labels=target, logits=output)
 
 
 def build_dense_model(adapter):
@@ -34,16 +46,13 @@ def build_dense_model(adapter):
         inputs=inputs,
         outputs=[out_values, out_policy])
 
-    def crossentropy_logits(target, output):
-        return tf.nn.softmax_cross_entropy_with_logits_v2(labels=target,
-                                                        logits=output)
-
     model.compile(
         loss=['mean_squared_error', crossentropy_logits],
         optimizer='adam')
 
-    super().__init__(self.SYMMETRIC_MODEL, adapter, False, model)
-
+    m = MyModel(MyModel.SYMMETRIC_MODEL, adapter, False, model)
+    m.name = "dense"
+    return m
 
 def build_conv_model(adapter):
     assert len(adapter.data_shapes) == 1
@@ -81,51 +90,89 @@ def build_conv_model(adapter):
     model.compile(
         loss=['mean_squared_error', crossentropy_logits],
         optimizer='adam')
+    m = MyModel(MyModel.SYMMETRIC_MODEL, adapter, False, model)
+    m.name = "conv"
+    return m
 
-    return model
 
 
+SIZE = 4
+CHAIN_SIZE = 3
+GAME_NAME = "gomoku-{}-{}".format(SIZE, CHAIN_SIZE)
 
-def test_alphazero(tmpdir):
-    g = Gomoku(4, 4, 3)
-    adapter = Gomoku.TensorAdapter(g, symmetrize=True)
-    model = MyModel(MyModel.SYMMETRIC_MODEL, adapter, False, build_conv_model(adapter))
+def run_train():
+    game = Gomoku(SIZE, SIZE, CHAIN_SIZE)
+    adapter = Gomoku.TensorAdapter(game, symmetrize=True)
+
+    model = build_dense_model(adapter)
 
     az = alphazero.AlphaZero(
-        g, model,
+        game, model,
         max_moves=20, num_simulations=64, batch_size=64, replay_buffer_size=2800)
-
     az.prefill_replay_buffer()
 
-    #assert 32 <= az.replay_buffer.records_count <= 128
-
-    az.train_model(4, 1)
-
-    estimator = az.last_estimator()
-    v, dd = estimator(g.start())
-    dd.pprint()
-    print(v)
-    #return
-
-    #print(g.show_board(sit, colors=True))
-
-    for _ in range(300):
+    WRITE_STEP = 100
+    for i in range(501):
         az.do_step()
-    az.train_model(4)
-
-    print("STATS:", az.replay_buffer.added, az.replay_buffer.sampled)
-
-    s = az.make_strategy()
-    sit = play_strategies(g, [s, s], after_move_callback=lambda sit: print(g.show_board(sit, colors=True)))
+        if i % WRITE_STEP == 0 and i > 0:
+            az.train_model(1)
+            model.keras_model.save("models/{}-{}-{}.model".format(GAME_NAME, model.name, i))
 
 
-    estimator = az.last_estimator()
-    v, dd = estimator(g.start())
-    dd.pprint()
-    print(v)
+def run_play():
+    game = Gomoku(SIZE, SIZE, CHAIN_SIZE)
+    adapter = Gomoku.TensorAdapter(game, symmetrize=True)
 
-    output = str(tmpdir.join("output.html"))
-    print("OUTPUT", output)
-    #play_info = play_strategies(g, [s, s], return_play_info=True)
-    #export_play_tree(play_info, output)
-    export_az_play_tree(az, output, num_simulations=256)
+    pdb = tournament.PlayerDatabase(game)
+
+    for path in os.listdir("models"):
+        if not path.startswith(GAME_NAME):
+            break
+        name = path[len(GAME_NAME) + 1:-6]
+        print("Loading", path)
+        keras_model = keras.models.load_model(os.path.join("models", path), custom_objects={"crossentropy_logits": crossentropy_logits})
+        model = MyModel(MyModel.SYMMETRIC_MODEL, adapter, True, keras_model)
+        pdb.add_player(name, model.make_strategy(num_simulations=64))
+
+    #pdb.add_player("uniform", UniformStrategy())
+
+    pairing = tournament.AllPlayAllPairing(both_sides=True)
+    frames = []
+
+    for step in tqdm.tqdm(range(10)):
+        pdb.play_tournament(pairing)
+        table = pdb.get_player_table()
+        frame = pd.DataFrame(table, columns=["player", "rating", "wins", "draws", "losses"])
+        frame["step"] = step
+        frames.append(frame)
+
+    frame = pd.concat(frames)
+    sns.lineplot(x="step", y="rating", hue="player", data=frame)
+    plt.show()
+
+    table = pdb.get_player_table()
+    frame = pd.DataFrame(table, columns=["player", "rating", "wins", "draws", "losses"])
+    frame["net"] = frame["player"].apply(lambda x: split_name(x)[0])
+    frame["iter"] = frame["player"].apply(lambda x: split_name(x)[1])
+    sns.lineplot(x="iter", y="rating", hue="net", data=frame)
+    plt.show()
+
+def split_name(name):
+    i = len(name) - 1
+    while i >= 0 and name[i].isdigit():
+        i -= 1
+    i += 1
+    return name[:i], int(name[i:])
+
+if __name__ == "__main__":
+    print(split_name("abc-123-321"))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("mode")
+    args = ap.parse_args()
+
+    if args.mode == "train":
+        run_train()
+    elif args.mode == "play":
+        run_play()
+    else:
+        print("Invalid mode")

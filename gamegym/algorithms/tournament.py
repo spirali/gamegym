@@ -4,6 +4,7 @@ from ..utils import get_rng, Distribution
 from enum import Enum
 import math
 import itertools
+import random
 from collections import namedtuple
 
 
@@ -32,19 +33,39 @@ ResultRecord = namedtuple("Record", ["player1", "player2", "result"])
 
 class RandomPairing:
 
-    def __init__(rounds, rng=None, seed=None):
+    def __init__(self, rounds, rng=None, seed=None):
         self.rng = rng = get_rng(rng=rng, seed=seed)
         self.rounds = rounds
 
     def generate_pairing(self, players):
-        for _ in range(rounds):
+        for _ in range(self.rounds):
             yield self.rng.choice(players, size=2)
+
 
 
 class AllPlayAllPairing:
 
+    def __init__(self, both_sides=False, randomize=False, rng=None, seed=None):
+        self.both_sides = both_sides
+        if randomize:
+            self.rng = get_rng(rng, seed)
+        else:
+            self.rng = None
+
     def generate_pairing(self, players):
-        return itertools.combinations(players, 2)
+        def shuffle(pair):
+            pair = list(pair)
+            rng.shuffle(pair)
+            return pair
+
+        if self.both_sides:
+            return itertools.permutations(players, 2)
+        else:
+            rng = self.rng
+            it = itertools.combinations(players, 2)
+            if rng is None:
+                return it
+            return (shuffle(pair) for pair in it)
 
 
 class PlayerDatabase:
