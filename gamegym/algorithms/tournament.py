@@ -5,6 +5,7 @@ from enum import Enum
 import math
 import itertools
 import random
+import json
 from collections import namedtuple, Counter
 
 
@@ -61,11 +62,22 @@ class GameResults:
         self.records = []
 
     def save(self, filename):
-        pass
+        data = [{"tournament_id": r.tournament_id, "player1": r.player1, "player2": r.player2, "result": r.result}
+            for r in self.records
+        ]
+        with open(filename, "w") as f:
+            json.dump(data, f)
 
     @classmethod
     def load(self, filename):
-        pass
+        with open(filename, "r") as f:
+            data = json.load(f)
+        results = GameResults()
+        results.records = [
+            ResultRecord(d["tournament_id"], d["player1"], d["player2"], d["result"])
+            for d in data
+        ]
+        return results
 
     def tournaments(self):
         return set(r.tournament for r in self.records)
@@ -185,9 +197,10 @@ class PlayerList:
         pairing = pairing_generator.generate_pairing(players)
 
         if skip_existing:
-            existing = Counter(game_results.tournament_pairings(tournament_id))
+            p = game_results.tournament_pairings(tournament_id)
+            existing = Counter(p)
             pairing_counter = Counter(pairing)
-            pairing = pairing_counter.subtract(existing).elements()
+            pairing = (pairing_counter - existing).elements()
 
         for player1, player2 in pairing:
             result = self._play_match(player1, player2)
