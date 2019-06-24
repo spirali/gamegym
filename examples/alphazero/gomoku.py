@@ -177,7 +177,7 @@ def run_play():
 
     for path in os.listdir("models"):
         if not path.startswith(GAME_NAME):
-            break
+            continue
         name = path[len(GAME_NAME) + 1:-6]
         print("Loading", path)
         keras_model = keras.models.load_model(os.path.join("models", path), custom_objects={"crossentropy_logits": crossentropy_logits})
@@ -192,7 +192,7 @@ def run_play():
     for step in tqdm.tqdm(range(10)):
         pdb.play_tournament(step, pairing, skip_existing=True)
 
-    #pdb.game_results.save("results2.dat")
+    pdb.game_results.save("results-{}.dat".format(GAME_NAME))
 
     #frame = pd.concat(frames)
     #sns.lineplot(x="step", y="rating", hue="player", data=frame)
@@ -212,6 +212,10 @@ def run_show():
     sns.lineplot(x="tournament_id", y="rating", hue="player", data=frame)
     plt.show()
 
+    sns.lineplot(x="tournament_id", y="fr", hue="player", data=frame)
+    plt.show()
+
+
     t = frame["tournament_id"].max()
     xframe = frame[frame["tournament_id"] == t]
     xframe.reset_index(drop=True)
@@ -225,7 +229,7 @@ def run_sample():
     game = Gomoku(SIZE, SIZE, CHAIN_SIZE)
     adapter = Gomoku.TensorAdapter(game, symmetrize=True)
 
-    path = "gomoku-5-4-conv2-500.model"
+    path = "gomoku-5-4-conv2-1500.model"
     keras_model = keras.models.load_model(os.path.join("models", path), custom_objects={"crossentropy_logits": crossentropy_logits})
     model = MyModel(MyModel.SYMMETRIC_MODEL, adapter, True, keras_model)
     s = model.make_strategy(num_simulations=64)
