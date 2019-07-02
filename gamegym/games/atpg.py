@@ -231,20 +231,21 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
 
     class TensorAdapter(TensorAdapter):
 
-        def observe_data(self, situation, _player):
+        def observe_data(self, situation, player):
             """
             Extract features from a given game situation from the point of view of the active player.
-
-            Returns `(P0 pieces bitmap, P1 pieces bitmap)`
             """
             board = situation.state[0]
-            if self.symmetrize:
-                p = situation.player
-                return (np.stack([board != p, board != 1 - p]),)
-            return (np.stack([board != 0, board != 1]),)
+            if player == 1:
+                last_move = np.zeros_like(board)
+                last_move[situation.action] = 1
+                return ("board_and_last_move", np.stack([board != 0, board != 1, board != 2, last_move], axis=2),)
+            else:
+                return ("board", np.stack([board != 0, board != 1, board != 2], axis=2),)
 
         def _generate_data_shapes(self):
-            return [(2, self.game.w, self.game.h)]
+            return {"board": [(self.game.w, self.game.h, 3)],
+                    "board_and_last_move": [(self.game.w, self.game.h, 4)]}
 
         def _generate_shaped_actions(self):
             actions = self.game.actions
