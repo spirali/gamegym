@@ -23,6 +23,7 @@ def crossentropy_logits(target, output):
 
 
 def common_part(adapter, input_name):
+    game = adapter.game
     inputs = keras.layers.Input(adapter.data_shapes[input_name][0])
     x = inputs
     x = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh")(x)
@@ -92,7 +93,7 @@ def build_player_1_model(adapter):
     return m
 
 
-def build_player_1_model(adapter):
+def build_player_2_model(adapter):
     input_name = "board"
     action_name = 2
     game = adapter.game
