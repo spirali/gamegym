@@ -101,7 +101,7 @@ class TextAdapter(Adapter):
     """
     Adds action listing, color, aliases and default action text decoding.
 
-    `self.action_names` is a mapping from (canonical) action names to 
+    `self.action_names` is a mapping from (canonical) action names to
     """
     def __init__(self, game, colors=False, symmetrize=False):
         super().__init__(game, symmetrize=symmetrize)
@@ -180,16 +180,21 @@ class TensorAdapter(Adapter):
     """
     def __init__(self, game, symmetrize=False):
         super().__init__(game, symmetrize=symmetrize)
-        shaped = self._generate_shaped_actions()
-        if isinstance(shaped, np.ndarray):
-            shaped = (shaped, )
-        self.shaped_actions = shaped
-        self.actions_index = {a: i for i, a in enumerate(flatten_array_list(shaped))}
-        self.data_shapes = self._generate_data_shapes()
 
-    @property
-    def action_data_shapes(self):
-        return [a.shape for a in self.shaped_actions]
+        self.shaped_actions = {}
+        self.actions_index = {}
+        self.flatten_actions = {}
+        for name, shaped in self._generate_shaped_actions().items():
+            if isinstance(shaped, np.ndarray):
+                shaped = (shaped,)
+                flatten = shaped
+            else:
+                shaped = shaped
+                flatten = flatten_array_list(shaped)
+            self.shaped_actions[name] = shaped
+            self.flatten_actions[name] = flatten
+            self.actions_index[name] = {a: i for i, a in enumerate(flatten)}
+        self.data_shapes = self._generate_data_shapes()
 
     def _generate_data_shapes(self):
         raise NotImplementedError
@@ -202,24 +207,28 @@ class TensorAdapter(Adapter):
         """
         return (np.array(self.game.actions, dtype=object),)
 
-    def decode_actions(self, observation: Observation, action_arrays: Tuple[np.ndarray]) -> Distribution:
+    def action_shape_name_for_situation(self, situation: Situation):
+        """
+            Override if more action shapes are provided
+        """
+        return None
+
+    def decode_actions(self, observation: Observation, named_action_arrays: Tuple[str, Tuple[np.ndarray]]) -> Distribution:
         """
         Decode a given tuple of likelihood ndarrays to a (normalized) distribution on valid actions.
         """
         # check shapes
-        assert len(self.shaped_actions) == len(action_arrays)
+        name, action_arrays = named_action_arrays
+        shaped_actions = self.shaped_actions[name]
+        assert len(shaped_actions) == len(action_arrays)
         for i in range(len(action_arrays)):
-            assert self.shaped_actions[i].shape == action_arrays[i].shape
-        actions = observation.actions
+            assert shaped_actions[i].shape == action_arrays[i].shape
         policy = flatten_array_list(action_arrays)
-        ps = np.empty(len(actions))
-        for i in range(len(actions)):
-            ps[i] = policy[self.actions_index[actions[i]]]
-        if np.sum(ps) < 1e-30:
-            ps = None  # Uniform dstribution
-        return Distribution(actions, ps)
+        if np.sum(policy) < 1e-30:
+            policy = None  # Uniform dstribution
+        return Distribution(self.flatten_actions[name], policy, norm=True)
 
-    def encode_actions(self, dist: Distribution) -> Tuple[np.ndarray]:
+    def encode_actions(self, situation: Situation, dist: Distribution) -> Tuple[np.ndarray]:
         actions_index = self.actions_index
         flatten = np.zeros(len(actions_index))
         for a, p in dist.items():

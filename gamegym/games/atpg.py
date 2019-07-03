@@ -21,7 +21,7 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
         self.h = h
         self.chain = chain
         board_actions = tuple((r, c) for c in range(self.w) for r in range(self.h))
-        self.board_actions = board_actions
+        self.player0_actions = board_actions
         dirs1 = ("n", "s", "w", "e")
         dirs2 = ("nw", "ne", "sw", "se")
         dirs = dirs1 + dirs2
@@ -35,9 +35,10 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
             "se": (1, 1),
             "sw": (-1, 1)
         }
-        player3_actions =  tuple((p, d) for p in board_actions for d in dirs1)
-        self.player3_actions = player3_actions
-        actions = board_actions + dirs + player3_actions
+        self.player1_actions = dirs
+        player2_actions =  tuple((p, d) for p in board_actions for d in dirs1)
+        self.player2_actions = player2_actions
+        actions = board_actions + dirs + player2_actions
 
         self.max_moves = 20
 
@@ -48,8 +49,8 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
         Return the initial internal state and active player.
         """
         board = np.zeros((self.h, self.w), dtype=np.int8) - 1  # -1: empty, 0,1: player 0/1
-        state = (board, self.board_actions)  # board, free coordinates, places of first two players
-        return StateInfo.new_player(state, 0, self.board_actions)
+        state = (board, self.player0_actions)  # board, free coordinates, places of first two players
+        return StateInfo.new_player(state, 0, self.player0_actions)
 
     def _check_empty(self, board, x, y):
         return x >= 0 and x < self.w and y >= 0 and y < self.h and board[x, y] == -1
@@ -118,7 +119,7 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
 
         if new_player == 2:
             new_actions = []
-            for a in self.player3_actions:
+            for a in self.player2_actions:
                 pos, d = a
                 v = new_board[pos]
                 if v == -1 or v == 2:
@@ -247,9 +248,22 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
             return {"board": [(self.game.w, self.game.h, 3)],
                     "board_and_last_move": [(self.game.w, self.game.h, 4)]}
 
+        def action_shape_name_for_situation(self, situation: Situation):
+            return situation.player
+
         def _generate_shaped_actions(self):
-            actions = self.game.actions
+            actions = self.game.player0_actions
             array = np.empty(len(actions), dtype=object)
             for i in range(len(actions)):
                 array[i] = actions[i]
-            return np.reshape(array, (self.game.w, self.game.h))
+            player0 = np.reshape(array, (self.game.w, self.game.h))
+
+            actions = self.game.player1
+            player1 = np.array(actions, dtype=object)
+
+            actions = self.game.player2_actions
+            array = np.empty(len(actions), dtype=object)
+            for i in range(len(actions)):
+                array[i] = actions[i]
+            player2 = np.reshape(array, (self.game.w, self.game.h, 4))
+            return {0: player0, 1: player1, 2: player2}

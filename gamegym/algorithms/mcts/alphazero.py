@@ -86,8 +86,9 @@ class AlphaZero:
             values.append(action)
             p.append(children[action].visit_count)
 
-        value = self.model.make_train_value(root.situation, root.value)
-        policy_target = self.model.make_train_policy_target(Distribution(values, p, norm=True))
+        situation = root.situation
+        value = self.model.make_train_value(situation, root.value)
+        policy_target = self.model.make_train_policy_target(situation, Distribution(values, p, norm=True))
         data = self.model.make_train_input(root.situation)
 
         record = ReplayRecord(data,

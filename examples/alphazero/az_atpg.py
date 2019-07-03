@@ -22,31 +22,28 @@ def crossentropy_logits(target, output):
     return tf.nn.softmax_cross_entropy_with_logits_v2(labels=target, logits=output)
 
 
-def build_conv2_model(adapter):
-    game = adapter.game
-    assert len(adapter.data_shapes) == 1
-    action_shapes = adapter.action_data_shapes
-    assert len(action_shapes) == 1
-    action_shape = action_shapes[0]
-    inputs = keras.layers.Input(adapter.data_shapes[0])
+def common_part(adapter, input_name):
+    inputs = keras.layers.Input(adapter.data_shapes[input_name][0])
     x = inputs
-    x = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh", data_format="channels_first")(x)
-    x = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh", data_format="channels_first")(x)
-    #x = keras.layers.Conv2D(16, (3, 3), padding="same")
-    #x = keras.layers.Flatten()(inputs)
-    #x = keras.layers.Dense(32, activation=keras.layers.LeakyReLU)(x)
-    #x = keras.layers.Dense(16, activation="tanh")(x)
-    #x = keras.layers.Dense(16, activation="tanh")(x)
+    x = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh")(x)
+    x = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh")(x)
 
-    y = keras.layers.Conv2D(8, (3, 3), padding="same", activation="tanh", data_format="channels_first")(x)
-    y = keras.layers.MaxPool2D(pool_size=(game.w, game.h), padding="same", data_format="channels_first")(y)
+    y = keras.layers.Conv2D(8, (3, 3), padding="same", activation="tanh")(x)
+    y = keras.layers.MaxPool2D(pool_size=(game.w, game.h), padding="same")(y)
     out_values = keras.layers.Dense(2, activation="tanh", name="out_values")(keras.layers.Flatten()(y))
 
-    #y = keras.layers.Conv2D(2, (3, 3), padding="same", activation="tanh", data_format="channels_first")(x)
-    #out_values = keras.layers.Reshape((2,))(keras.layers.MaxPool2D((1, 1), name="out_values")(y))
+    return inputs, out_values, x
 
+def build_player_0_model(adapter):
+    input_name = "board"
+    action_name = 0
+    game = adapter.game
 
-    y = keras.layers.Conv2D(1, (3, 3), padding="same", activation="tanh", data_format="channels_first")(x)
+    action_shape = adapter.shaped_actions[action_name][0].shape
+
+    inputs, out_values, x = common_part(adapter, input_name)
+
+    y = keras.layers.Conv2D(1, (3, 3), padding="same", activation="tanh")(x)
     out_policy = keras.layers.Reshape(action_shape)(y)
 
     model = keras.models.Model(
@@ -62,9 +59,68 @@ def build_conv2_model(adapter):
     model.compile(
         loss=['mean_squared_error', crossentropy_logits],
         optimizer='adam')
-    m = mcts_model.KerasModel(MyModel.SYMMETRIC_MODEL, adapter, False, model)
-    m.name = "conv2"
+    m = mcts_model.KerasModel(input_name, action_name, False, adapter, False, model)
     return m
+
+
+def build_player_1_model(adapter):
+    input_name = "board_and_last_move"
+    action_name = 1
+    game = adapter.game
+
+    action_shape = adapter.shaped_actions[action_name][0].shape
+
+    inputs, out_values, x = common_part(adapter, input_name)
+
+    y = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh")(x)
+    y = keras.layers.MaxPool2D(pool_size=(game.w, game.h), padding="same")(y)
+    out_policy = keras.layers.Dense(8, activation="tanh")(keras.layers.Flatten()(y))
+    model = keras.models.Model(
+        inputs=inputs,
+        outputs=[out_values, out_policy])
+
+    model.summary()
+
+    def crossentropy_logits(target, output):
+        return tf.nn.softmax_cross_entropy_with_logits_v2(labels=target,
+                                                          logits=output)
+
+    model.compile(
+        loss=['mean_squared_error', crossentropy_logits],
+        optimizer='adam')
+    m = mcts_model.KerasModel(input_name, action_name, False, adapter, False, model)
+    return m
+
+
+def build_player_1_model(adapter):
+    input_name = "board"
+    action_name = 2
+    game = adapter.game
+
+    action_shape = adapter.shaped_actions[action_name][0].shape
+
+    inputs, out_values, x = common_part(adapter, input_name)
+
+    y = keras.layers.Conv2D(1, (3, 3), padding="same", activation="tanh")(x)
+    out_policy = keras.layers.Reshape(action_shape)(y)
+
+    model = keras.models.Model(
+        inputs=inputs,
+        outputs=[out_values, out_policy])
+
+    model.summary()
+
+    def crossentropy_logits(target, output):
+        return tf.nn.softmax_cross_entropy_with_logits_v2(labels=target,
+                                                          logits=output)
+
+    model.compile(
+        loss=['mean_squared_error', crossentropy_logits],
+        optimizer='adam')
+    m = mcts_model.KerasModel(input_name, action_name, False, adapter, False, model)
+    return m
+
+
 
 
 SIZE = 5
