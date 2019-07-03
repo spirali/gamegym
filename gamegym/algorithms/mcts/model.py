@@ -34,8 +34,8 @@ class Model:
 
     def make_train_value(self, situation, value):
         # Since we simetrize the position, we have to switch values for second player
-        if situation.player == 1:
-            return value[::-1]
+        #if situation.player == 1:
+        #    return value[::-1]
         return value
 
     def make_strategy(self, num_simulations):
@@ -45,8 +45,8 @@ class Model:
 
 class KerasModel(Model):
 
-    def __init__(self, player, adapter, trained, keras_model):
-        super().__init__(player, adapter, trained)
+    def __init__(self, adapter, trained, keras_model):
+        super().__init__(adapter, trained)
         self.keras_model = keras_model
 
     def fit(self, inputs, target_values, target_policy_logits, epochs):
@@ -66,9 +66,24 @@ class KerasModel(Model):
         # Extra value and logits from result
         value = prediction[0][0]
 
-        # Since we simetrize the position, we have to switch values for second player
-        if situation.player == 1:
-            value = value[::-1]
-
         logits = [p for p in prediction[1:][0]]
         return value, self.adapter.decode_actions(observation, logits)
+
+
+class TwoPlayerSymetricKerasModel(KerasModel):
+
+    def __init__(self, adapter, trained, keras_model):
+        assert adapter.symmetrize
+        super().__init__(self, adapter, trained, keras_model)
+
+    def make_train_value(self, situation, value):
+        # Since we simetrize the position, we have to switch values for second player
+        if situation.player == 1:
+            return value[::-1]
+        return value
+
+    def estimate(self, situation):
+        value, actions = super().estimate(situation)
+        if situation.player == 1:
+            value = value[::-1]
+        return value, actions
