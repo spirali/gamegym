@@ -6,14 +6,16 @@ from .strategy import MctsStrategy
 
 class Model:
 
-    SYMMETRIC_MODEL = -1
-
     def __init__(self, symmetric, adapter, trained):
         assert symmetric == adapter.symmetrize
         assert not symmetric or adapter.game.players == 2
         self.symmetric = symmetric
         self.adapter = adapter
         self.trained = trained
+
+    @property
+    def number_of_shapes(self):
+        return len(self.adapter.shapes)
 
     def estimate(self, situation):
         raise NotImplementedError
@@ -40,18 +42,19 @@ class Model:
         #    return value[::-1]
         return value
 
+    def shape_index(self, situation):
+        return self.adapter.shape_index
+
     def make_strategy(self, num_simulations):
         return MctsStrategy(self.adapter.game, self.adapter, self.estimate, num_simulations)
 
 
-
 class KerasModel(Model):
 
-    def __init__(self, input_name, action_name, symmetric, adapter, trained, keras_model):
+    def __init__(self, symmetric, adapter, trained, keras_models):
         super().__init__(symmetric, adapter, trained)
-        self.input_name = input_name
-        self.action_name = action_name
-        self.keras_model = keras_model
+        assert len(adapter.shapes) == len(keras_models)
+        self.keras_models = keras_models
 
     def fit(self, inputs, target_values, target_policy_logits, epochs):
         self.trained = True

@@ -27,10 +27,10 @@ class AlphaZero:
         self.num_sampling_moves = num_sampling_moves
         self.model = model
         self.batch_size = batch_size
-        self.replay_buffer = ReplayBuffer(replay_buffer_size)
+        self.replay_buffers = [ReplayBuffer(replay_buffer_size) for _ in range(model.number_of_shapes)]
 
     def prefill_replay_buffer(self):
-        while self.replay_buffer.records_count < self.batch_size:
+        while any(b.records_count < self.batch_size for b in self.replay_buffers):
             self.play_game()
 
     def last_estimator(self):
@@ -72,7 +72,7 @@ class AlphaZero:
         return AlphaZeroStrategy(self.game, self.model.adapter, self.last_estimator(), num_simulations)
 
     def do_step(self, epochs=1, sample_gen_ratio=4):
-        if not self.replay_buffer.added or (self.replay_buffer.sampled / self.replay_buffer.added) > sample_gen_ratio:
+        if any(not b.added or (b.sampled / b.added) > sample_gen_ratio for b in self.replay_buffers):
             self.play_game()
         else:
             self.train_model(epochs)
@@ -86,12 +86,13 @@ class AlphaZero:
             values.append(action)
             p.append(children[action].visit_count)
 
+        model = self.model
         situation = root.situation
-        value = self.model.make_train_value(situation, root.value)
-        policy_target = self.model.make_train_policy_target(situation, Distribution(values, p, norm=True))
-        data = self.model.make_train_input(root.situation)
+        value = model.make_train_value(situation, root.value)
+        policy_target = model.make_train_policy_target(situation, Distribution(values, p, norm=True))
+        data = model.make_train_input(situation)
 
         record = ReplayRecord(data,
                               value,
                               policy_target)
-        self.replay_buffer.add_record(record)
+        self.replay_buffers[model.shape_index(situation)].add_record(record)

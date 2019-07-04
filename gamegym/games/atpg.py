@@ -4,7 +4,7 @@ import numpy as np
 
 from ..game import PerfectInformationGame
 from ..situation import Action, Situation, StateInfo
-from ..adapter import Adapter, TensorAdapter, TextAdapter
+from ..adapter import Adapter, TensorAdapter, TextAdapter, TensorShape
 from ..utils import Distribution
 from ..ui.cliutils import draw_board
 
@@ -16,10 +16,9 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
     The state is encoded as `(np.array board, tuple of available actions)`.
     """
 
-    def __init__(self, w: int, h: int, chain: int = 5):
+    def __init__(self, w: int, h: int):
         self.w = w
         self.h = h
-        self.chain = chain
         board_actions = tuple((r, c) for c in range(self.w) for r in range(self.h))
         self.player0_actions = board_actions
         dirs1 = ("n", "s", "w", "e")
@@ -232,6 +231,8 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
 
     class TensorAdapter(TensorAdapter):
 
+        SYMMETRIZABLE = False
+
         def observe_data(self, situation, player):
             """
             Extract features from a given game situation from the point of view of the active player.
@@ -244,21 +245,17 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
             else:
                 return ("board", np.stack([board != 0, board != 1, board != 2], axis=2),)
 
-        def _generate_data_shapes(self):
-            return {"board": [(self.game.w, self.game.h, 3)],
-                    "board_and_last_move": [(self.game.w, self.game.h, 4)]}
+        def _generate_shapes(self):
+            board = [(self.game.w, self.game.h, 3)]
+            board_and_last_move = [(self.game.w, self.game.h, 4)]
 
-        def action_shape_name_for_situation(self, situation: Situation):
-            return situation.player
-
-        def _generate_shaped_actions(self):
             actions = self.game.player0_actions
             array = np.empty(len(actions), dtype=object)
             for i in range(len(actions)):
                 array[i] = actions[i]
             player0 = np.reshape(array, (self.game.w, self.game.h))
 
-            actions = self.game.player1
+            actions = self.game.player1_actions
             player1 = np.array(actions, dtype=object)
 
             actions = self.game.player2_actions
@@ -266,4 +263,12 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
             for i in range(len(actions)):
                 array[i] = actions[i]
             player2 = np.reshape(array, (self.game.w, self.game.h, 4))
-            return {0: player0, 1: player1, 2: player2}
+
+            return [
+                TensorShape(board, player0),
+                TensorShape(board_and_last_move, player1),
+                TensorShape(board, player2),
+            ]
+
+        def shape_index(self, situation: Situation):
+            return situation.player

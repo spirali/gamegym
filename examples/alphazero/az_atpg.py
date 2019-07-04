@@ -1,6 +1,6 @@
 from gamegym.algorithms.mcts import search, buffer, alphazero, model as mcts_model
 from gamegym.utils import Distribution
-from gamegym.games import Gomoku, gomoku
+from gamegym.games import atpg
 from gamegym.algorithms.stats import play_strategies
 from gamegym.ui.tree import export_play_tree, export_az_play_tree
 from gamegym.algorithms import tournament
@@ -22,9 +22,9 @@ def crossentropy_logits(target, output):
     return tf.nn.softmax_cross_entropy_with_logits_v2(labels=target, logits=output)
 
 
-def common_part(adapter, input_name):
+def common_part(adapter, player):
     game = adapter.game
-    inputs = keras.layers.Input(adapter.data_shapes[input_name][0])
+    inputs = keras.layers.Input(adapter.shapes[player].input_shape[0])
     x = inputs
     x = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh")(x)
     x = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh")(x)
@@ -36,13 +36,12 @@ def common_part(adapter, input_name):
     return inputs, out_values, x
 
 def build_player_0_model(adapter):
-    input_name = "board"
-    action_name = 0
+    player = 0
     game = adapter.game
 
-    action_shape = adapter.shaped_actions[action_name][0].shape
+    action_shape = adapter.shapes[player].shaped_actions[0].shape
 
-    inputs, out_values, x = common_part(adapter, input_name)
+    inputs, out_values, x = common_part(adapter, player)
 
     y = keras.layers.Conv2D(1, (3, 3), padding="same", activation="tanh")(x)
     out_policy = keras.layers.Reshape(action_shape)(y)
@@ -60,18 +59,16 @@ def build_player_0_model(adapter):
     model.compile(
         loss=['mean_squared_error', crossentropy_logits],
         optimizer='adam')
-    m = mcts_model.KerasModel(input_name, action_name, False, adapter, False, model)
-    return m
+    return model
 
 
 def build_player_1_model(adapter):
-    input_name = "board_and_last_move"
-    action_name = 1
+    player = 1
     game = adapter.game
 
-    action_shape = adapter.shaped_actions[action_name][0].shape
+    action_shape = adapter.shapes[player].shaped_actions[0].shape
 
-    inputs, out_values, x = common_part(adapter, input_name)
+    inputs, out_values, x = common_part(adapter, player)
 
     y = keras.layers.Conv2D(64, (3, 3), padding="same", activation="tanh")(x)
     y = keras.layers.MaxPool2D(pool_size=(game.w, game.h), padding="same")(y)
@@ -89,20 +86,18 @@ def build_player_1_model(adapter):
     model.compile(
         loss=['mean_squared_error', crossentropy_logits],
         optimizer='adam')
-    m = mcts_model.KerasModel(input_name, action_name, False, adapter, False, model)
-    return m
+    return model
 
 
 def build_player_2_model(adapter):
-    input_name = "board"
-    action_name = 2
+    player = 2
     game = adapter.game
 
-    action_shape = adapter.shaped_actions[action_name][0].shape
+    action_shape = adapter.shapes[player].shaped_actions[0].shape
 
-    inputs, out_values, x = common_part(adapter, input_name)
+    inputs, out_values, x = common_part(adapter, player)
 
-    y = keras.layers.Conv2D(1, (3, 3), padding="same", activation="tanh")(x)
+    y = keras.layers.Conv2D(4, (3, 3), padding="same", activation="tanh")(x)
     out_policy = keras.layers.Reshape(action_shape)(y)
 
     model = keras.models.Model(
@@ -118,21 +113,19 @@ def build_player_2_model(adapter):
     model.compile(
         loss=['mean_squared_error', crossentropy_logits],
         optimizer='adam')
-    m = mcts_model.KerasModel(input_name, action_name, False, adapter, False, model)
-    return m
-
-
-
+    return model
 
 SIZE = 5
-CHAIN_SIZE = 4
-GAME_NAME = "gomoku-{}-{}".format(SIZE, CHAIN_SIZE)
+
+game = atpg.Asymetric3PlayerGomoku(SIZE, SIZE)
+adapter = game.TensorAdapter(game)
 
 def run_train():
-    game = Gomoku(SIZE, SIZE, CHAIN_SIZE)
-    adapter = Gomoku.TensorAdapter(game, symmetrize=True)
 
-    model = build_conv2_model(adapter)
+    m0 = build_player_0_model(adapter)
+    m1 = build_player_1_model(adapter)
+    m2 = build_player_2_model(adapter)
+    model = mcts_model.KerasModel(False, adapter, False, [m0, m1, m2])
 
     az = alphazero.AlphaZero(
         game, model,
@@ -148,7 +141,6 @@ def run_train():
 
 
 def run_play():
-    game = Gomoku(SIZE, SIZE, CHAIN_SIZE)
     adapter = Gomoku.TensorAdapter(game, symmetrize=True)
 
     filename = "{}-results.dat".format(GAME_NAME)
@@ -236,11 +228,11 @@ if __name__ == "__main__":
 
     if args.mode == "train":
         run_train()
-    elif args.mode == "play":
-        run_play()
-    elif args.mode == "show":
-        run_show()
-    elif args.mode == "sample":
-        run_sample()
-    else:
-        print("Invalid mode")
+    #elif args.mode == "play":
+    #    run_play()
+    #elif args.mode == "show":
+    #    run_show()
+    #elif args.mode == "sample":
+    #    run_sample()
+    #else:
+    #    print("Invalid mode")

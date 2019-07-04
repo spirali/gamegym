@@ -166,6 +166,25 @@ class TextAdapter(Adapter):
         return self.colored(', ', 'white', None, ['dark']).join(self.colored(self.action_aliases[a][0], 'yellow') for a in actions)
 
 
+class TensorShape:
+
+    __slots__ = ("input_shape", "shaped_actions", "flatten_actions", "actions_index")
+
+    def __init__(self, input_shape, shaped_actions):
+        self.input_shape = input_shape
+
+        shaped = shaped_actions
+        if isinstance(shaped, np.ndarray):
+            flatten = shaped.flatten()
+            shaped = (shaped,)
+        else:
+            flatten = flatten_array_list(shaped)
+
+        self.shaped_actions = shaped
+        self.flatten_actions = flatten
+        self.actions_index = {a: i for i, a in enumerate(flatten)}
+
+
 class TensorAdapter(Adapter):
     """
     Used to encode
@@ -180,38 +199,16 @@ class TensorAdapter(Adapter):
     """
     def __init__(self, game, symmetrize=False):
         super().__init__(game, symmetrize=symmetrize)
+        self.shapes = self._generate_shapes()
 
-        self.shaped_actions = {}
-        self.actions_index = {}
-        self.flatten_actions = {}
-        for name, shaped in self._generate_shaped_actions().items():
-            if isinstance(shaped, np.ndarray):
-                shaped = (shaped,)
-                flatten = shaped
-            else:
-                shaped = shaped
-                flatten = flatten_array_list(shaped)
-            self.shaped_actions[name] = shaped
-            self.flatten_actions[name] = flatten
-            self.actions_index[name] = {a: i for i, a in enumerate(flatten)}
-        self.data_shapes = self._generate_data_shapes()
-
-    def _generate_data_shapes(self):
+    def _generate_shapes(self) -> Tuple[TensorShape]:
         raise NotImplementedError
 
-    def _generate_shaped_actions(self) -> Tuple[np.ndarray]:
-        """
-        Return a tuple of shaped ndarrays of actions, or a single ndarray.
-
-        The default implementation returns `game.actions`.
-        """
-        return (np.array(self.game.actions, dtype=object),)
-
-    def action_shape_name_for_situation(self, situation: Situation):
+    def shape_index(self, situation: Situation):
         """
             Override if more action shapes are provided
         """
-        return None
+        return 0
 
     def decode_actions(self, observation: Observation, named_action_arrays: Tuple[str, Tuple[np.ndarray]]) -> Distribution:
         """
