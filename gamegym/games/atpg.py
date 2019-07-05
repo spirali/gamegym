@@ -240,10 +240,10 @@ class Asymetric3PlayerGomoku(PerfectInformationGame):
             board = situation.state[0]
             if player == 1:
                 last_move = np.zeros_like(board)
-                last_move[situation.action] = 1
-                return ("board_and_last_move", np.stack([board != 0, board != 1, board != 2, last_move], axis=2),)
+                last_move[situation.history[-1]] = 1
+                return (np.stack([board != 0, board != 1, board != 2, last_move], axis=2),)
             else:
-                return ("board", np.stack([board != 0, board != 1, board != 2], axis=2),)
+                return (np.stack([board != 0, board != 1, board != 2], axis=2),)
 
         def _generate_shapes(self):
             board = [(self.game.w, self.game.h, 3)]

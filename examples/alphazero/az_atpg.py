@@ -31,7 +31,7 @@ def common_part(adapter, player):
 
     y = keras.layers.Conv2D(8, (3, 3), padding="same", activation="tanh")(x)
     y = keras.layers.MaxPool2D(pool_size=(game.w, game.h), padding="same")(y)
-    out_values = keras.layers.Dense(2, activation="tanh", name="out_values")(keras.layers.Flatten()(y))
+    out_values = keras.layers.Dense(3, activation="tanh", name="out_values")(keras.layers.Flatten()(y))
 
     return inputs, out_values, x
 

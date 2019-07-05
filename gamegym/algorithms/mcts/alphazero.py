@@ -7,7 +7,7 @@ from gamegym.utils import Distribution, flatten_array_list
 
 
 def dummy_estimator(situation):
-    return np.array((0, 0)), Distribution(situation.state[1], None)
+    return np.zeros(situation.game.players), Distribution(situation.actions, None)
 
 
 class AlphaZero:
@@ -27,7 +27,7 @@ class AlphaZero:
         self.num_sampling_moves = num_sampling_moves
         self.model = model
         self.batch_size = batch_size
-        self.replay_buffers = [ReplayBuffer(replay_buffer_size) for _ in range(model.number_of_shapes)]
+        self.replay_buffers = [ReplayBuffer(replay_buffer_size) for _ in range(model.number_of_models)]
 
     def prefill_replay_buffer(self):
         while any(b.records_count < self.batch_size for b in self.replay_buffers):
@@ -62,8 +62,9 @@ class AlphaZero:
     def train_model(self, n_batches=1, epochs=1):
         model = self.model  # TODO: Clone model?
         for _ in range(n_batches):
-            batch = self.replay_buffer.get_batch(self.batch_size)
-            model.fit(batch.inputs, batch.target_values, batch.target_policy_logits, epochs=epochs)
+            for index, buffer in enumerate(self.replay_buffers):
+                batch = buffer.get_batch(self.batch_size)
+                model.fit(index, batch.inputs, batch.target_values, batch.target_policy_logits, epochs=epochs)
         self.model = model
 
     def make_strategy(self, num_simulations=None):
@@ -95,4 +96,4 @@ class AlphaZero:
         record = ReplayRecord(data,
                               value,
                               policy_target)
-        self.replay_buffers[model.shape_index(situation)].add_record(record)
+        self.replay_buffers[model.model_index(situation)].add_record(record)

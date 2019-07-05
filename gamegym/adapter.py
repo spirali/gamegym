@@ -210,29 +210,37 @@ class TensorAdapter(Adapter):
         """
         return 0
 
-    def decode_actions(self, observation: Observation, named_action_arrays: Tuple[str, Tuple[np.ndarray]]) -> Distribution:
+    def decode_actions(self, observation: Observation, action_arrays: Tuple[np.ndarray]) -> Distribution:
         """
         Decode a given tuple of likelihood ndarrays to a (normalized) distribution on valid actions.
         """
         # check shapes
-        name, action_arrays = named_action_arrays
-        shaped_actions = self.shaped_actions[name]
-        assert len(shaped_actions) == len(action_arrays)
+        # TODO
+        shape = self.shapes[self.shape_index(observation)]
+        assert len(shape.shaped_actions) == len(action_arrays)
         for i in range(len(action_arrays)):
-            assert shaped_actions[i].shape == action_arrays[i].shape
-        policy = flatten_array_list(action_arrays)
+            assert shape.shaped_actions[i].shape == action_arrays[i].shape
+
+        policy = []
+        flatten = flatten_array_list(action_arrays)
+        index = shape.actions_index
+        for a in observation.actions:
+            policy.append(flatten[index[a]])
+
+        policy = np.array(policy)
         if np.sum(policy) < 1e-30:
             policy = None  # Uniform dstribution
-        return Distribution(self.flatten_actions[name], policy, norm=True)
+        return Distribution(observation.actions, policy, norm=True)
 
     def encode_actions(self, situation: Situation, dist: Distribution) -> Tuple[np.ndarray]:
-        actions_index = self.actions_index
-        flatten = np.zeros(len(actions_index))
+        shape = self.shapes[self.shape_index(situation)]
+        result = np.zeros(len(shape.flatten_actions))
+        index = shape.actions_index
         for a, p in dist.items():
-            flatten[actions_index[a]] = p
+            result[index[a]] = p
 
-        assert len(self.shaped_actions) == 1  # TODO: other options
-        return flatten.reshape(self.shaped_actions[0].shape)
+        assert len(shape.shaped_actions) == 1  # TODO: other options
+        return result.reshape(shape.shaped_actions[0].shape)
 
 
 #def test_adapter():

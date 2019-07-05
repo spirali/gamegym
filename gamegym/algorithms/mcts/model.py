@@ -14,13 +14,16 @@ class Model:
         self.trained = trained
 
     @property
-    def number_of_shapes(self):
+    def number_of_models(self):
         return len(self.adapter.shapes)
+
+    def model_index(self, situation):
+        return self.adapter.shape_index(situation)
 
     def estimate(self, situation):
         raise NotImplementedError
 
-    def fit(self, inputs, target_values, target_policy_logits, epochs):
+    def fit(self, model_index, inputs, target_values, target_policy_logits, epochs):
         # Implementation must switch trained to True if fit finishes correctly
         raise NotImplementedError
 
@@ -29,8 +32,9 @@ class Model:
         return observation.data
 
     def make_train_input(self, situation):
-        data = self.make_input_data_from_observation(self.adapter.get_observation(situation))
-        assert len(data) == len(self.adapter.data_shapes)
+        adapter = self.adapter
+        data = self.make_input_data_from_observation(adapter.get_observation(situation))
+        assert len(data) == len(adapter.shapes[adapter.shape_index(situation)].input_shape)
         return data
 
     def make_train_policy_target(self, situation, distribution):
@@ -41,9 +45,6 @@ class Model:
         #if situation.player == 1:
         #    return value[::-1]
         return value
-
-    def shape_index(self, situation):
-        return self.adapter.shape_index
 
     def make_strategy(self, num_simulations):
         return MctsStrategy(self.adapter.game, self.adapter, self.estimate, num_simulations)
@@ -56,9 +57,9 @@ class KerasModel(Model):
         assert len(adapter.shapes) == len(keras_models)
         self.keras_models = keras_models
 
-    def fit(self, inputs, target_values, target_policy_logits, epochs):
+    def fit(self, index, inputs, target_values, target_policy_logits, epochs):
         self.trained = True
-        self.keras_model.fit(inputs, [target_values, target_policy_logits], epochs=epochs)
+        self.keras_models[index].fit(inputs, [target_values, target_policy_logits], epochs=epochs)
 
     def estimate(self, situation):
         observation = self.adapter.get_observation(situation)
@@ -67,7 +68,7 @@ class KerasModel(Model):
         data = [np.expand_dims(a, 0) for a in self.make_input_data_from_observation(observation)]
 
         # Do prediction
-        prediction = self.keras_model.predict(data)
+        prediction = self.keras_models[self.model_index(situation)].predict(data)
 
         # Extra value and logits from result
         value = prediction[0][0]
