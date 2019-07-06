@@ -116,6 +116,7 @@ def build_player_2_model(adapter):
     return model
 
 SIZE = 5
+GAME_NAME = "atpg-{}".format(SIZE)
 
 game = atpg.Asymetric3PlayerGomoku(SIZE, SIZE)
 adapter = game.TensorAdapter(game)
@@ -126,18 +127,22 @@ def run_train():
     m1 = build_player_1_model(adapter)
     m2 = build_player_2_model(adapter)
     model = mcts_model.KerasModel(False, adapter, False, [m0, m1, m2])
+    model.name = "conv1"
 
     az = alphazero.AlphaZero(
         game, model,
         max_moves=20, num_simulations=64, batch_size=64, replay_buffer_size=2800)
     az.prefill_replay_buffer()
 
-    WRITE_STEP = 300
-    for i in range(1501):
+    WRITE_STEP = 50
+    for i in range(100 + 1):
+        print("******************** STEP {} *************************".format(i))
         az.do_step()
         if i % WRITE_STEP == 0 and i > 0:
             az.train_model(1)
-            model.keras_model.save("models/{}-{}-{}.model".format(GAME_NAME, model.name, i))
+            model.keras_models[0].save("models/{}-0-{}-{}.model".format(GAME_NAME, model.name, i))
+            model.keras_models[1].save("models/{}-1-{}-{}.model".format(GAME_NAME, model.name, i))
+            model.keras_models[2].save("models/{}-2-{}-{}.model".format(GAME_NAME, model.name, i))
 
 
 def run_play():
@@ -201,11 +206,12 @@ def run_show():
 
 
 def run_sample():
-    game = Gomoku(SIZE, SIZE, CHAIN_SIZE)
-    adapter = Gomoku.TensorAdapter(game, symmetrize=True)
+    models = []
+    for i in range(3):
+        path = "atpg-5-{}-conv1-50.model".format(i)
+        keras_model = keras.models.load_model(os.path.join("models", path), custom_objects={"crossentropy_logits": crossentropy_logits})
+        models.append(keras_model)
 
-    path = "gomoku-5-4-conv2-1500.model"
-    keras_model = keras.models.load_model(os.path.join("models", path), custom_objects={"crossentropy_logits": crossentropy_logits})
     model = MyModel(MyModel.SYMMETRIC_MODEL, adapter, True, keras_model)
     s = model.make_strategy(num_simulations=64)
 
@@ -232,7 +238,7 @@ if __name__ == "__main__":
     #    run_play()
     #elif args.mode == "show":
     #    run_show()
-    #elif args.mode == "sample":
-    #    run_sample()
+    elif args.mode == "sample":
+        run_sample()
     #else:
     #    print("Invalid mode")
