@@ -135,7 +135,7 @@ def run_train():
     az.prefill_replay_buffer()
 
     WRITE_STEP = 50
-    for i in range(100 + 1):
+    for i in range(800 + 1):
         print("******************** STEP {} *************************".format(i))
         az.do_step()
         if i % WRITE_STEP == 0 and i > 0:
@@ -208,14 +208,14 @@ def run_show():
 def run_sample():
     models = []
     for i in range(3):
-        path = "atpg-5-{}-conv1-50.model".format(i)
+        path = "atpg-5-{}-conv1-800.model".format(i)
         keras_model = keras.models.load_model(os.path.join("models", path), custom_objects={"crossentropy_logits": crossentropy_logits})
         models.append(keras_model)
 
-    model = MyModel(MyModel.SYMMETRIC_MODEL, adapter, True, keras_model)
+    model = mcts_model.KerasModel(False, adapter, True, models)
     s = model.make_strategy(num_simulations=64)
 
-    sit = play_strategies(game, [s, s], after_move_callback=lambda sit: print(game.show_board(sit, colors=True)))
+    sit = play_strategies(game, [s, s, s], after_move_callback=lambda sit: print(game.show_board(sit, colors=True)))
 
 
 
