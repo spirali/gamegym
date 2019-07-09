@@ -54,17 +54,22 @@ class AllPlayAllPairing:
             return (shuffle(pair) for pair in it)
 
 
-ResultRecord = namedtuple("Record", ["tournament_id", "player1", "player2", "result"])
+ResultRecord = namedtuple("Record", ["tournament_id", "players", "payoff"])
 
 class GameResults:
 
     def __init__(self):
         self.records = []
 
-    def save(self, filename):
-        data = [{"tournament_id": r.tournament_id, "player1": r.player1, "player2": r.player2, "result": r.result}
+    def to_dicts(self):
+        return [{"tournament_id": r.tournament_id,
+                 "players": r.players,
+                 "payoff": r.payoff}
             for r in self.records
         ]
+
+    def save(self, filename):
+        data = self.to_dicts()
         with open(filename, "w") as f:
             json.dump(data, f)
 
@@ -74,20 +79,21 @@ class GameResults:
             data = json.load(f)
         results = GameResults()
         results.records = [
-            ResultRecord(d["tournament_id"], d["player1"], d["player2"], d["result"])
+            ResultRecord(d["tournament_id"], d["player1"], d["player2"], d["payoff"])
             for d in data
         ]
         return results
 
-    def tournaments(self):
-        return set(r.tournament for r in self.records)
+    def players(self, position=None):
+        if position is None:
+            return set(p for r in self.records for p in r.players)
+        else:
+            return set(r.players[position] for r in self.records)
 
-    def players(self):
-        return set(r.player1 for r in self.records) | set(r.player2 for r in self.records)
+    def add_result(self, tournament_id, player1, player2, payoff):
+        self.records.append(ResultRecord(tournament_id, player1, player2, payoff))
 
-    def add_result(self, tournament_id, player1, player2, result):
-        self.records.append(ResultRecord(tournament_id, player1, player2, result))
-
+    """
     def tournament_pairings(self, tournament_id):
         for r in self.records:
             if r.tournament_id == tournament_id:
@@ -110,17 +116,26 @@ class GameResults:
         e1 = r1 / rs
         e2 = r2 / rs
         return elo_k * (result_p1 - e1), elo_k * (result_p2 - e2)
+    """
 
-    def player_stats(self, initial_rating=1500, elo_k=1):
+    def player_stats(self):
         import pandas as pd
         players = sorted(self.players())
 
         frame = pd.DataFrame(index=players)
-        frame["rating"] = float(initial_rating)
-        frame["wins"] = 0
-        frame["losses"] = 0
-        frame["draws"] = 0
+        frame["payoff"] = 0
+        frame["plays"] = 0
 
+        for r in self.records:
+            for player, payoff in zip(r.players):
+                p = frame.loc[player]
+                p.payoff += payoff
+                p.plays += 1
+
+        return frame
+
+
+        """
         def get_tournamen_id(record):
             return record.tournament_id
 
@@ -163,6 +178,7 @@ class GameResults:
             new_frame.reset_index(inplace=True, drop=True)
             frames.append(new_frame)
         return pd.concat(frames)
+        """
 
 
 class PlayerList:

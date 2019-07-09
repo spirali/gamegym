@@ -23,7 +23,7 @@ class Model:
     def estimate(self, situation):
         raise NotImplementedError
 
-    def fit(self, model_index, inputs, target_values, target_policy_logits, epochs):
+    def fit(self, model_index, inputs, target_values, target_policy_logits, epochs, verbose=False):
         # Implementation must switch trained to True if fit finishes correctly
         raise NotImplementedError
 
@@ -57,9 +57,9 @@ class KerasModel(Model):
         assert len(adapter.shapes) == len(keras_models)
         self.keras_models = keras_models
 
-    def fit(self, index, inputs, target_values, target_policy_logits, epochs):
+    def fit(self, index, inputs, target_values, target_policy_logits, epochs, verbose):
         self.trained = True
-        self.keras_models[index].fit(inputs, [target_values, target_policy_logits], epochs=epochs)
+        self.keras_models[index].fit(inputs, [target_values, target_policy_logits], epochs=epochs, verbose=verbose)
 
     def estimate(self, situation):
         observation = self.adapter.get_observation(situation)

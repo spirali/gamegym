@@ -59,12 +59,12 @@ class AlphaZero:
             situation = s.root.children[action].situation
         return situation
 
-    def train_model(self, n_batches=1, epochs=1):
+    def train_model(self, n_batches=1, epochs=1, verbose=False):
         model = self.model  # TODO: Clone model?
         for _ in range(n_batches):
             for index, buffer in enumerate(self.replay_buffers):
                 batch = buffer.get_batch(self.batch_size)
-                model.fit(index, batch.inputs, batch.target_values, batch.target_policy_logits, epochs=epochs)
+                model.fit(index, batch.inputs, batch.target_values, batch.target_policy_logits, epochs=epochs, verbose=verbose)
         self.model = model
 
     def make_strategy(self, num_simulations=None):
@@ -72,11 +72,11 @@ class AlphaZero:
             num_simulations = self.num_simulations
         return AlphaZeroStrategy(self.game, self.model.adapter, self.last_estimator(), num_simulations)
 
-    def do_step(self, epochs=1, sample_gen_ratio=4):
+    def do_step(self, epochs=1, sample_gen_ratio=4, verbose=False):
         if any(not b.added or (b.sampled / b.added) > sample_gen_ratio for b in self.replay_buffers):
             self.play_game()
         else:
-            self.train_model(epochs)
+            self.train_model(epochs, verbose)
 
     def _record_search(self, search):
         root = search.root
