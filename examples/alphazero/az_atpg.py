@@ -120,7 +120,7 @@ def make_model(game):
     m0 = build_player_0_model(adapter)
     m1 = build_player_1_model(adapter)
     m2 = build_player_2_model(adapter)
-    return mcts_model.KerasModel(False, adapter, False, [m0, m1, m2])
+    return [m0, m1, m2]
 
 """
     def run_train():
@@ -247,7 +247,7 @@ if __name__ == "__main__":
 """
 
 if __name__ == "__main__":
-    cli = AlphaZeroCli()
+    cli = AlphaZeroCli(keras_custom_objects={"crossentropy_logits": crossentropy_logits})
     cli.set_config(max_moves=20, num_simulations=64, batch_size=128, replay_buffer_size=3000)
     cli.register_game("atpg-5", atpg.Asymetric3PlayerGomoku(5, 5))
     cli.register_model("model1", make_model)

@@ -1,15 +1,17 @@
 import argparse
 import os
 import tqdm
-from gamegym.algorithms.mcts import alphazero
+from gamegym.algorithms.mcts import alphazero, model as mcts_model
+import keras
 
 
 class AlphaZeroCli:
 
-    def __init__(self):
+    def __init__(self, keras_custom_objects):
         self.games = {}
         self.model_builders = {}
         self.alphazero_config = {}
+        self.keras_custom_objects = keras_custom_objects
 
     def set_config(self, **kw):
         self.alphazero_config.update(kw)
@@ -34,7 +36,10 @@ class AlphaZeroCli:
     def _command_train(self, args):
         name = args.name or args.model
         game = self.games[args.game]
-        model = self.model_builders[args.model](game)
+        player_models = self.model_builders[args.model](game)
+        assert len(player_models) == game.players
+        model = mcts_model.KerasModel(False, game.TensorAdapter(game), False, player_models)
+
 
         model_dir = self._model_dir(args.game)
         if not os.path.exists(model_dir):
@@ -48,9 +53,33 @@ class AlphaZeroCli:
             az.do_step()
             if i % args.write_step == 0 or i == args.steps:
                 for (p, m) in enumerate(model.keras_models):
-                    filename = os.path.join(model_dir, "{}-step{}-p{}".format(name, i, p))
-                    m.save(filename)
+                    m.save(self._player_file(args.game, name, p, i))
 
+    def _player_file(self, game_name, name, player_pos, steps):
+        return os.path.join(self._model_dir(game_name), "{}-p{}@{}".format(name, player_pos, steps))
+
+    def _load_player(self, game, player_pos, string):
+        if "@" in string:
+            name, steps = string.split("@")
+            try:
+                steps = int(steps)
+            except ValueError:
+                raise Exception("Invalid number of steps in name: {}".format(string))
+            path = self._player_file(game, name, player_pos, steps)
+            return keras.models.load_model(path, custom_objects=self.keras_custom_objects)
+        else:
+            raise Exception("Invalid player name")
+
+    def _command_sample_play(self, args):
+        game = self.games[args.game]
+        players = args.p
+        if not players:
+            raise Exception("Players not defined")
+        if len(players) == 1:
+            players = players * game.players
+        elif len(players) != game.players:
+            raise Exception("Invalid number of players")
+        player_models = [self._load_player(args.game, i, p) for i, p in enumerate(players)]
 
     def _parse_args(self):
         parser = argparse.ArgumentParser("AlphaZeroCli")
@@ -63,6 +92,11 @@ class AlphaZeroCli:
         p.add_argument("steps", type=int)
         p.add_argument("--write-step", type=int, default=100)
         p.add_argument("--name")
+
+        p = subparsers.add_parser('sample-play')
+        p.add_argument("game", choices=sorted(self.games))
+        p.add_argument("-p", action="append")
+        p.add_argument("--repeat", type=int, default=1)
         return parser.parse_args()
 
     def main(self):
@@ -71,5 +105,7 @@ class AlphaZeroCli:
             self._command_info(args)
         elif args.command == "train":
             self._command_train(args)
+        elif args.command == "sample-play":
+            self._command_sample_play(args)
         else:
             raise Exception("Invalid command")
