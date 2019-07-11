@@ -6,17 +6,12 @@ import math
 import itertools
 import random
 import json
+import tqdm
+import numpy as np
 from collections import namedtuple, Counter
 
 
-class PlayerOrder:
-
-    Fixed = 0
-    Random = 1
-    BothSides = 2
-
-
-
+"""
 class RandomPairing:
 
     def __init__(self, rounds, rng=None, seed=None):
@@ -52,6 +47,16 @@ class AllPlayAllPairing:
             if rng is None:
                 return it
             return (shuffle(pair) for pair in it)
+"""
+
+
+class AllPlayAllPairing:
+
+    def __init__(self):
+        pass
+
+    def generate_pairing(self, players):
+        return itertools.product(*players)
 
 
 ResultRecord = namedtuple("Record", ["tournament_id", "players", "payoff"])
@@ -64,7 +69,7 @@ class GameResults:
     def to_dicts(self):
         return [{"tournament_id": r.tournament_id,
                  "players": r.players,
-                 "payoff": r.payoff}
+                 "payoff": tuple(r.payoff)}
             for r in self.records
         ]
 
@@ -79,7 +84,7 @@ class GameResults:
             data = json.load(f)
         results = GameResults()
         results.records = [
-            ResultRecord(d["tournament_id"], d["player1"], d["player2"], d["payoff"])
+            ResultRecord(d["tournament_id"], tuple(d["players"]), np.array(d["payoff"]))
             for d in data
         ]
         return results
@@ -90,15 +95,13 @@ class GameResults:
         else:
             return set(r.players[position] for r in self.records)
 
-    def add_result(self, tournament_id, player1, player2, payoff):
-        self.records.append(ResultRecord(tournament_id, player1, player2, payoff))
+    def add_result(self, tournament_id, players, payoff):
+        self.records.append(ResultRecord(tournament_id, players, payoff))
+
+    def tournament_pairings(self, tournament_id):
+        return [r.players for r in self.records if r.tournament_id == tournament_id]
 
     """
-    def tournament_pairings(self, tournament_id):
-        for r in self.records:
-            if r.tournament_id == tournament_id:
-                yield (r.player1, r.player2)
-
     def _compute_elo(self, player1_rating, player2_rating, elo_k, result):
         if result == 0:
             result_p1 = 0.5
@@ -127,11 +130,12 @@ class GameResults:
         frame["plays"] = 0
 
         for r in self.records:
-            for player, payoff in zip(r.players):
+            for player, payoff in zip(r.players, r.payoff):
                 p = frame.loc[player]
                 p.payoff += payoff
                 p.plays += 1
 
+        frame["name"] = frame.index
         return frame
 
 
@@ -180,6 +184,8 @@ class GameResults:
         return pd.concat(frames)
         """
 
+Player = namedtuple("Player", ["name", "strategy", "player_position"])
+
 
 class PlayerList:
 
@@ -189,45 +195,42 @@ class PlayerList:
                  game_results=None,
                  rng=None,
                  seed=None):
-        assert game.players == 2
-        self.players = {}
+
         self.game = game
         self.max_moves = max_moves
         self.rng = get_rng(rng=rng, seed=seed)
+        self.players = [[] for _ in range(game.players)]
         self.game_results = game_results or GameResults()
 
 
-    def add_player(self, name, strategy):
-        assert isinstance(name, str)
-        assert name not in self.players
-        self.players[name] = strategy
+    def add_player(self, name, strategy, position):
+        assert 0 <= position < self.game.players
+        self.players[position].append(Player(name, strategy, position))
 
 
     def play_tournament(self, tournament_id, pairing_generator, skip_existing=False):
         assert isinstance(tournament_id, int)
         game_results = self.game_results
-        players = list(self.players)
-        if len(players) < 2:
+
+        if any(not ps for ps in self.players):
             raise Exception("Not enough players")
 
-        pairing = pairing_generator.generate_pairing(players)
+        pairing = pairing_generator.generate_pairing(self.players)
 
         if skip_existing:
+            raise Exception("TODO")
+            """
             p = game_results.tournament_pairings(tournament_id)
             existing = Counter(p)
             pairing_counter = Counter(pairing)
             pairing = (pairing_counter - existing).elements()
+            """
 
-        for player1, player2 in pairing:
-            result = self._play_match(player1, player2)
-            game_results.add_result(tournament_id, player1, player2, result)
+        for ps in tqdm.tqdm(list(pairing)):
+            result = self._play_match(ps)
+            game_results.add_result(tournament_id, [p.name for p in ps], result)
 
 
-    def _play_match(self, player1, player2):
-        value = play_strategies(self.game, [self.players[player1], self.players[player2]], rng=self.rng).payoff
-        if abs(value[0] - value[1]) < 0.00001:
-            return 0
-        elif value[0] > value[1]:
-            return 1
-        else:
-            return -1
+    def _play_match(self, players):
+        return play_strategies(self.game, [p.strategy for p in players], rng=self.rng).payoff
+
