@@ -247,8 +247,8 @@ if __name__ == "__main__":
 """
 
 if __name__ == "__main__":
-    cli = AlphaZeroCli(keras_custom_objects={"crossentropy_logits": crossentropy_logits})
-    cli.set_config(max_moves=20, num_simulations=64, batch_size=128, replay_buffer_size=3000)
+    cli = AlphaZeroCli(keras_custom_objects={"crossentropy_logits": crossentropy_logits},
+                       max_moves=20, num_simulations=64, batch_size=128, replay_buffer_size=3000)
     cli.register_game("atpg-5", atpg.Asymetric3PlayerGomoku(5, 5))
     cli.register_model("model1", make_model)
     cli.main()
