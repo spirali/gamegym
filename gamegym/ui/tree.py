@@ -277,7 +277,6 @@ def export_az_play_tree(az, output, num_simulations=None, max_actions=10, show_l
   root = TreeNode(html.escape(adapter.get_observation(situation).data), "init", True)
   node = root
   next_node = None
-  next_situation = None
   while not situation.is_terminal():
       s = search.MctSearch(situation, est)
       s.search(num_simulations)

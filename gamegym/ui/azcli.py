@@ -156,7 +156,12 @@ class AlphaZeroCli:
                                     .make_strategy(num_simulations=num_simulations)
                 if p != "uniform" else UniformStrategy()
             for p in set(players)}
-        sit = play_strategies(game, [strategies[p] for p in players], after_move_callback=lambda sit: print(game.show_board(sit, colors=True)))
+
+        if args.tree:
+            sit = play_strategies(game, [strategies[p] for p in players], after_move_callback=lambda sit: print(game.show_board(sit, colors=True)))
+        else:
+            raise Exception("Not implemented")
+
         print("Payoff:", sit.payoff)
 
     def _parse_args(self):
@@ -173,6 +178,7 @@ class AlphaZeroCli:
 
         p = subparsers.add_parser('sample-play')
         p.add_argument("players", nargs="+")
+        p.add_argument("--tree", type="store_true")
         p.add_argument("--simulations", type=int)
         p.add_argument("--repeat", type=int, default=1)
 
